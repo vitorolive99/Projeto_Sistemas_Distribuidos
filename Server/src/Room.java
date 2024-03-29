@@ -47,21 +47,19 @@ public class Room extends Thread{
                 }
             }
             primeiraPartida = false;
+        }else{
+            jogadorVez = ultimoGanhador;
         }
         
         while(!fechou || !ganhou){
             if (jogadorVez == 4) {
                 jogadorVez = 0;
-            }   
-
-            //enviando aos jogadores as pedras da mesa
-            for (Player player : players) {
-                player.sendPedrasMesa(mesa);
             }
 
-            //codigo 10 para o jogador da vez
-            players.get(jogadorVez).sendMessage(10);
+            //codigo 1 para o jogador da vez
+            players.get(jogadorVez).sendMessage(1);
 
+            //recebendo se o jogador pingou
             pingou=players.get(jogadorVez).receivePingo();
 
             if(!pingou){
@@ -88,8 +86,17 @@ public class Room extends Thread{
                 //removendo a pedra jogada da mao do jogador
                 players.get(jogadorVez).removePedra(jogada);
 
+                //enviando aos jogadores as pedras da mesa
+                for (Player player : players) {
+                    player.sendPedrasMesa(mesa);
+                }
+
             }else{
                 pingo++;
+                for (Player player : players) {
+                    //codigo 2 para informar q o jogador pingou
+                    player.sendMessage(2);
+                }
             }
             //Se pingo for 4, o jogo fechou
             if (pingo == 4) {
@@ -97,6 +104,15 @@ public class Room extends Thread{
             }
             //verificando se o jogador ganhou
             ganhou = players.get(jogadorVez).acabouMao();
+
+            if (ganhou) {
+                ultimoGanhador = jogadorVez;
+                for (Player player : players) {
+                    //codigo 3 para informar q o jogO acabou
+                    player.sendMessage(3);
+                }
+            }
+            //passando a vez para o proximo jogador
             jogadorVez++;
         }
 
@@ -131,31 +147,4 @@ public class Room extends Thread{
         return pedra;
     }
 
-    // Outros métodos relevantes para a lógica do jogo podem ser adicionados aqui
 }
-
-class Pedra {
-    private int lado1;
-    private int lado2;
-
-    public Pedra(int lado1, int lado2) {
-        this.lado1 = lado1;
-        this.lado2 = lado2;
-    }
-
-    public int getLado1() {
-        return lado1;
-    }
-
-    public int getLado2() {
-        return lado2;
-    }
-
-    public void inverte() {
-        int aux;
-        aux = lado1;
-        lado1 = lado2;
-        lado2 = aux;
-    }
-}
-
