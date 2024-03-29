@@ -37,7 +37,7 @@ public class Player {
         }
     }
 
-    public void sendPedras() {
+    public void sendPedrasMao() {
         try {
             for (Pedra pedra : mao) {
                 outputStream.writeObject(pedra);
@@ -48,29 +48,24 @@ public class Player {
         }
     }
 
-    // Exemplo de método para receber uma mensagem do cliente
+    // Recebe a pedra jogada pelo jogador
     public Pedra receivePedra() {
         Pedra pedra = null;
         try {
-            // Recebe o objeto do inputStream
             Object receivedObject = inputStream.readObject();
 
-            // Verifica se o objeto recebido é uma instância de Pedra
             if (receivedObject instanceof Pedra) {
-                // Converte o objeto para uma instância de Pedra
                 pedra = (Pedra) receivedObject;
             } else {
-                // Caso o objeto não seja uma instância de Pedra, imprime uma mensagem de erro
                 System.err.println("Objeto recebido não é uma instância de Pedra.");
             }
         } catch (IOException | ClassNotFoundException e) {
-            // Trata possíveis exceções de IO ou ClassNotFoundException
             e.printStackTrace();
         }
         return pedra;
     }
 
-    public boolean isSena() {
+    public boolean temSena() {
         for (Pedra pedra : mao) {
             if (pedra.getLado1() == 6 && pedra.getLado2() == 6) {
                 return true;
@@ -91,12 +86,13 @@ public class Player {
     }
 
     public boolean receivePingo() {
+        boolean pingo = false;
         try {
-            return inputStream.readBoolean();
+            pingo = inputStream.readBoolean();
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return false;
+        return pingo;
     }
 
     public Object receiveMessage() {
@@ -107,6 +103,21 @@ public class Player {
             e.printStackTrace();
         }
         return message;
+    }
+
+    public void sendPedrasMesa(ArrayList<Pedra> pedras) {
+        try {
+            for (Pedra pedra : pedras) {
+                outputStream.writeObject(pedra);
+            }
+            outputStream.flush();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void removePedra(Pedra pedra) {
+        mao.remove(pedra);
     }
 
     // Outros métodos relevantes para a lógica do jogo podem ser adicionados aqui

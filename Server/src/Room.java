@@ -4,9 +4,9 @@ import java.util.List;
 
 public class Room extends Thread{
     private List<Player> players;
-    private boolean gameStarted;
-    private ArrayList<Pedra> pedras;
-    private boolean primeiraPartida = true;
+    private boolean ganhou;
+    private ArrayList<Pedra> mesa;
+    private boolean primeiraPartida;
     private int jogadorVez;
     private int ultimoGanhador;
     private boolean fechou = false;
@@ -15,7 +15,8 @@ public class Room extends Thread{
 
     public Room() {
         players = new ArrayList<>();
-        gameStarted = false;
+        ganhou = false;
+        primeiraPartida = true;
     }
 
     public synchronized void addPlayer(Player player) {
@@ -28,69 +29,75 @@ public class Room extends Thread{
     }
 
     public synchronized void startGame() {
-        gameStarted = true;
+        Pedra jogada;
         System.out.println("Game started in room. Total players: " + players.size());
 
         distribuicaoPedras();
 
-        if (primeiraPartida = true) {
+        //enviando as pecas para os jogadores no cliente
+        for (Player player : players) {
+            player.sendPedrasMao();
+        }
+
+        //verificando qual o primeiro a jogar se for a primeira partida
+        if (primeiraPartida == true) {
             for (Player player : players) {
-                if (player.isSena()) {
+                if (player.temSena()) {
                     jogadorVez = players.indexOf(player);
                 }
             }
-            primeiraPartida = false;            
+            primeiraPartida = false;
         }
-
-        //enviando as pecas para os jogadores no cliente
-        for (Player player : players) {
-            player.sendPedras();
-        }
-
-        Pedra jogada;
-        //codigo 10 para o jogador da vez
-        players.get(jogadorVez).sendMessage(10);
-
-        //recebendo a jogada do jogador
-        jogada = players.get(jogadorVez).receivePedra();
-
-        pedras.add(jogada);
-
         
-        while(!fechou || !players.get(jogadorVez).acabouMao()){
-            jogadorVez++;
+        while(!fechou || !ganhou){
             if (jogadorVez == 4) {
                 jogadorVez = 0;
             }   
-            
+
+            //enviando aos jogadores as pedras da mesa
+            for (Player player : players) {
+                player.sendPedrasMesa(mesa);
+            }
+
+            //codigo 10 para o jogador da vez
             players.get(jogadorVez).sendMessage(10);
 
             pingou=players.get(jogadorVez).receivePingo();
 
             if(!pingou){
-
                 pingo = 0;
+                
                 //recebendo a jogada do jogador
                 jogada = players.get(jogadorVez).receivePedra();
 
-                if (jogada.getLado2() == pedras.get(0).getLado1() || jogada.getLado1() == pedras.get(0).getLado1() ) {
-                    if (jogada.getLado1() == pedras.get(0).getLado1()) {
-                        jogada.inverte();
+                if (mesa.size() != 0) {
+                    if (jogada.getLado2() == mesa.get(0).getLado1() || jogada.getLado1() == mesa.get(0).getLado1() ) {
+                        if (jogada.getLado1() == mesa.get(0).getLado1()) {
+                            jogada.inverte();
+                        }
+                        mesa.add(0, jogada);                
+                    }else if (jogada.getLado2() == mesa.get(mesa.size()-1).getLado2() || jogada.getLado1() == mesa.get(mesa.size()-1).getLado2()){
+                        if (jogada.getLado2() == mesa.get(0).getLado2()) {
+                            jogada.inverte();
+                        }
+                        mesa.add(jogada);
                     }
-                    pedras.add(0, jogada);                
+                }else {
+                    mesa.add(jogada);     
                 }
-                if (jogada.getLado2() == pedras.get(pedras.size()-1).getLado2() || jogada.getLado1() == pedras.get(pedras.size()-1).getLado2()){
-                    if (jogada.getLado2() == pedras.get(0).getLado2()) {
-                        jogada.inverte();
-                    }
-                    pedras.add(jogada);    
-                }
+                //removendo a pedra jogada da mao do jogador
+                players.get(jogadorVez).removePedra(jogada);
+
             }else{
                 pingo++;
             }
-            if (pingo ==4) {
+            //Se pingo for 4, o jogo fechou
+            if (pingo == 4) {
                 fechou = true;
             }
+            //verificando se o jogador ganhou
+            ganhou = players.get(jogadorVez).acabouMao();
+            jogadorVez++;
         }
 
         
@@ -107,7 +114,7 @@ public class Room extends Thread{
     private void distribuicaoPedras() {
         for (int i = 0; i < 7; i++) {
             for (int j = i; j < 7; j++) {
-                pedras.add(new Pedra(i, j));
+                mesa.add(new Pedra(i, j));
             }
         }
 
@@ -119,8 +126,8 @@ public class Room extends Thread{
     }
     
     private Pedra pedraAleatoria() {
-        Pedra pedra = pedras.get((int) (Math.random() * pedras.size()));
-        pedras.remove(pedra);
+        Pedra pedra = mesa.get((int) (Math.random() * mesa.size()));
+        mesa.remove(pedra);
         return pedra;
     }
 
