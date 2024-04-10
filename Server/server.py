@@ -2,25 +2,35 @@ import socket
 import threading
 from player import Player
 from room import Room
+import json
+
 
 # Função para lidar com cada cliente
-def handle_client(conn, addr, rooms):
+def handle_client(conn, addr, rooms: list[Room]):
     try:
         # Criar um novo jogador
         player_obj = Player(conn, addr)
-        
+
         # Informar o jogador sobre a conexão
         print(f"Novo jogador conectado: {addr}")
 
         # Enviar lista de salas disponíveis para o jogador
-        conn.sendall(str(len(rooms)).encode())
+        # Código 1000 - Enviar lista de salas e suas informações
+        room_data = []
         for room_obj in rooms:
-            room_info = f"Sala {room_obj.room_id}: {len(room_obj.players)}/{room_obj.max_players} jogadores\n"
-            conn.sendall(room_info.encode())
+            room_info = {
+            "code": "1000",
+            "room_id": room_obj.room_id,
+            "players": f"{len(room_obj.players)}/{room_obj.max_players}"
+            }
+            room_data.append(room_info)
+        
+        json_data = json.dumps(room_data)
+        conn.sendall(json_data.encode())
 
-        # Solicitar ao jogador que escolha uma sala
-        conn.sendall("Escolha uma sala pelo número: ".encode())
-        room_choice = int(conn.recv(1024).decode())
+        # Esperar que o jogador escolha uma sala    
+        json_data = conn.recv(1024).decode()
+        room_choice = int(json.loads(json_data)["chose"])
 
         # Adicionar o jogador à sala escolhida
         rooms[room_choice].add_player(player_obj)
@@ -30,15 +40,16 @@ def handle_client(conn, addr, rooms):
         rooms[room_choice].start_game()
 
     except Exception as e:
-        print(f"Erro ao lidar com o cliente {addr}: {e}")
+        print(f"Jogador desconectado. {addr}: {e}")
         conn.close()
+
 
 # Função principal do servidor
 def main():
     # Configurações do servidor
     host = "127.0.0.1"
     port = 5555
-    max_players_per_room = 4
+    max_players_per_room = 1
     max_rooms = 3
 
     # Lista de salas
@@ -66,6 +77,7 @@ def main():
 
     finally:
         server.close()
+
 
 if __name__ == "__main__":
     main()

@@ -1,17 +1,24 @@
 import threading
 import numpy as np
-from domino import Domino 
+from domino import Domino
+from player import Player
 
 class Room:
+    '''Códigos:\n
+    1001 - Partida iniciada\n
+    1002 - Enviando pedras do jogador\n
+    1003 - Informa que é a vez do jogador\n
+    1004 - Informa que esta enviando a mesa\n
+    '''
     def __init__(self, room_id, max_players):
         self.room_id = room_id
         self.max_players = max_players
         self.fist_game = True
-        self.players = []
+        self.players: list[Player] = []
         self.lock = threading.Lock()
         self.game_started = False
         self.current_player = None  # Jogador atual
-        self.dominoes = np.array([])  # Dominós na mesa
+        self.dominoes: list[Domino] = [] # Dominós na mesa
         self.last_winner = None
         
         self.In_Game = False
@@ -20,12 +27,25 @@ class Room:
         self.locked = False
         self.winner = None
 
-    def add_player(self, player):
+    def add_player(self, player: Player):
         with self.lock:
             if not self.is_full():
                 self.players.append(player)
+                message = {
+                    "code": "1005",
+                    "message": f"Você adicionado à sala {self.room_id}!"
+                }
+                player.send_message(message)
+                
+                player.receive_message()
             else:
-                print(f"Sala {self.room_id} está cheia!")
+                message = {
+                    "code": "1005",
+                    "message": "Sala cheia!\nTente outra sala."
+                }
+                player.send_message(message)
+                
+                player.receive_message()
 
     def is_full(self):
         return len(self.players) >= self.max_players
@@ -35,8 +55,6 @@ class Room:
             return
         with self.lock:
             if not self.game_started:
-                # Definir jogador inicial (por exemplo, o com o maior domino)
-                self.current_player = self.get_starting_player()
                 self.game_started = True
                 game_thread = threading.Thread(target=self.play_game)
                 game_thread.start()
@@ -44,38 +62,78 @@ class Room:
     def play_game(self):
         print(f"Partida iniciada na sala {self.room_id}")
         for player in self.players:
-            player.send_message("Partida iniciada!\n")
+            message = {
+                "code": "1001",
+                "message": "Partida iniciada!"
+            }
+            player.send_message(message)
+            
+            player.receive_message()
             
         # Loop principal do jogo
         
         self.dominoes_distribution()
         
+        self.dominoes = []
+        # Definir jogador inicial (por exemplo, o com o maior domino)
+        self.current_player = self.players[0]
+        
         for player in self.players:
-            player.send_message("Sua mão: ")
-            for domino in player.mao:
-                player.send_message(str(domino.values))
+            message = {
+                "code": "1002",
+                "message": "Recebendo pedras do jogador"
+            }
+            player.send_message(message)
+            
+            player.receive_message()
+            
+            domino_list = [domino.values.tolist() for domino in player.mao]
+            player.send_message(domino_list)
+            
+            player.receive_message()
         
         while True:
             # Verificar se a partida terminou
-            if self.check_game_over(last_turn):
+            if self.check_game_over():
                 break
 
             # Jogada do jogador atual
-            self.current_player.send_message("Sua vez!\n")
+            message = {
+                "code": "1003",
+                "message": "Sua vez!"
+            }
+            self.current_player.send_message(message)
+            
             
             jogada = self.current_player.receive_message()
             
+            jogada = Domino(jogada)
+            
             self.add_jogada(jogada)
                 
-            last_turn = self.current_player
+            self.current_player
             # Trocar para o próximo jogador (implementar lógica circular)
             self.current_player = self.get_next_player()
+            
+            for player in self.players:
+                message = {
+                    "code": "1004",
+                    "message": "Enviando mesa"
+                }
+                player.send_message(message)
+                
+                player.receive_message()
+                
+                mesa = [domino.values.tolist() for domino in self.dominoes]
+                player.send_message(mesa)
+                
+                player.receive_message()
 
     def get_starting_player(self):
         if self.fist_game:
             for player in self.players:
                 for domino in player.mao:
-                    if domino.values[0] == 6 and domino.values[1] == 6:
+                    if domino.values[0] == 6 and domino.values[-1] == 6:
                         return player
                     
             self.fist_game = False
@@ -127,17 +185,17 @@ class Room:
         self.dominoes = np.delete(self.dominoes, np.where(self.dominoes == domino))
         return domino
     
-    def check_for_winner(self, player):
+    def check_for_winner(self, player: Player):
         if len(player.mao) == 0:
             return True
         
-    def check_player_dominoes(self, player):
+    def check_player_dominoes(self, player: Player):
         if len(self.dominoes) == 0:
             return True
 
         left = self.dominoes[0].values[0]
         right = self.dominoes[-1].values[-1]
-        for domino in player.dominoes:
+        for domino in player.mao:
             if left in domino.values:
                 return True
             if right in domino.values:
@@ -167,29 +225,38 @@ class Room:
                 
         self.win(self.winner)
     
-    def win(self, player):
+    def win(self, player: Player):
         for player in self.players:
-            if self.locked:
-                player.send_message("Jogo fechado!\n")
-            else:
-                player.send_message("Fim de jogo!\n")
-            player.send_message(f"O vencedor foi: {player.addr}\n")
+            if player is not None:  # Verifica se o jogador não é None
+                if self.locked:
+                    message = {
+                        "code": "1005",
+                        "message": "Jogo fechado!"
+                    }
+                else:
+                    message = {
+                        "code": "1005",
+                        "message": "Fim de jogo!"
+                    }
+                message["winner"] = f"O vencedor foi: {player.addr}"
+                player.send_message(message)
+
             
-    def add_jogada(self, domino):
+    def add_jogada(self, domino: Domino):
         
         if len(self.dominoes) == 0:
-            self.dominoes = np.insert(self.dominoes, 0, domino)
+            self.dominoes.insert(0, domino)
 
-        if domino.values[1] == self.dominoes[0].values[0] or domino.values[0] == self.dominoes[0].values[0]:
+        elif domino.values[-1] == self.dominoes[0].values[0] or domino.values[0] == self.dominoes[0].values[0]:
             if domino.values[0] == self.dominoes[0].values[0]:
                 domino.values = domino.values[::-1] # Inverte os valores do domino
                 
-            self.dominoes = np.insert(self.dominoes, 0, domino)
+            self.dominoes.insert(0, domino)
             
-        elif domino.values[0] == self.dominoes[-1].values[-1] or domino.values[1] == self.dominoes[-1].values[-1]:
-            if domino.values[1] == self.dominoes[-1].values[-1]:
+        elif domino.values[0] == self.dominoes[-1].values[-1] or domino.values[-1] == self.dominoes[-1].values[-1]:
+            if domino.values[-1] == self.dominoes[-1].values[-1]:
                 domino.values = domino.values[::-1] # Inverte os valores do domino
             
-            self.dominoes = np.append(self.dominoes, domino)
+            self.dominoes.append(domino)
             
         
